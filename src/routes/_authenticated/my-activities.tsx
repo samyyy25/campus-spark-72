@@ -28,10 +28,11 @@ function MyActivities() {
       const { data: regs } = await supabase.from("registrations").select("*").eq("user_id", userId!).order("created_at",{ascending:false});
       if (!regs) return [];
       const enriched = await Promise.all(regs.map(async (r: any) => {
-        const meta = TABLE_MAP[r.activity_type];
+        const meta = TABLE_MAP[r.activity_type as string];
         if (!meta) return { ...r, title: "Activity" };
         const { data: item } = await supabase.from(meta.table as any).select("*").eq("id", r.activity_id).maybeSingle();
-        return { ...r, item, title: item?.[meta.titleField] ?? "Untitled", date: meta.dateField ? item?.[meta.dateField] : null };
+        const it = item as Record<string, any> | null;
+        return { ...r, item: it, title: it?.[meta.titleField] ?? "Untitled", date: meta.dateField ? it?.[meta.dateField] : null };
       }));
       return enriched;
     },

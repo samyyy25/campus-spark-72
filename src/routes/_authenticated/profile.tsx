@@ -88,7 +88,7 @@ function ProfilePage() {
   );
 }
 
-function Field({ label, v, onChange, type = "text", placeholder }: any) {
+function Field({ label, v, onChange, type = "text", placeholder }: { label: string; v: any; onChange: (v: string) => void; type?: string; placeholder?: string }) {
   return (
     <div>
       <Label>{label}</Label>
