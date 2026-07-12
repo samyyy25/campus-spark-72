@@ -42,6 +42,19 @@ function initialValues(fields: FieldDef[], defaults?: Record<string, any>) {
   return v;
 }
 
+function rowToValues(fields: FieldDef[], row: Record<string, any>) {
+  const v: Record<string, any> = {};
+  for (const f of fields) {
+    const raw = row[f.name];
+    if (f.type === "tags") v[f.name] = Array.isArray(raw) ? raw.join(", ") : (raw ?? "");
+    else if (f.type === "switch") v[f.name] = !!raw;
+    else if (f.type === "datetime") v[f.name] = raw ? new Date(raw).toISOString().slice(0, 16) : "";
+    else if (f.type === "date") v[f.name] = raw ? String(raw).slice(0, 10) : "";
+    else v[f.name] = raw ?? "";
+  }
+  return v;
+}
+
 export function EntityManager({ table, title, description, emptyIcon: Icon, fields, orderBy, renderRow, defaults }: Props) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
