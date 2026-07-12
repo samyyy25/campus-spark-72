@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil } from "lucide-react";
 import { EmptyState } from "@/lib/page-shell";
 
 export type FieldDef =
@@ -42,9 +42,23 @@ function initialValues(fields: FieldDef[], defaults?: Record<string, any>) {
   return v;
 }
 
+function rowToValues(fields: FieldDef[], row: Record<string, any>) {
+  const v: Record<string, any> = {};
+  for (const f of fields) {
+    const raw = row[f.name];
+    if (f.type === "tags") v[f.name] = Array.isArray(raw) ? raw.join(", ") : (raw ?? "");
+    else if (f.type === "switch") v[f.name] = !!raw;
+    else if (f.type === "datetime") v[f.name] = raw ? new Date(raw).toISOString().slice(0, 16) : "";
+    else if (f.type === "date") v[f.name] = raw ? String(raw).slice(0, 10) : "";
+    else v[f.name] = raw ?? "";
+  }
+  return v;
+}
+
 export function EntityManager({ table, title, description, emptyIcon: Icon, fields, orderBy, renderRow, defaults }: Props) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, any>>(() => initialValues(fields, defaults));
 
   const { data = [], isLoading } = useQuery({
@@ -56,6 +70,11 @@ export function EntityManager({ table, title, description, emptyIcon: Icon, fiel
     },
   });
 
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ["admin", table] });
+    qc.invalidateQueries({ queryKey: [table] });
+  };
+
   const createMut = useMutation({
     mutationFn: async (payload: Record<string, any>) => {
       const { data: u } = await supabase.auth.getUser();
@@ -65,12 +84,27 @@ export function EntityManager({ table, title, description, emptyIcon: Icon, fiel
     },
     onSuccess: () => {
       toast.success(`${title.replace(/s$/, "")} created`);
-      qc.invalidateQueries({ queryKey: ["admin", table] });
-      qc.invalidateQueries({ queryKey: [table] });
+      invalidateAll();
       setValues(initialValues(fields, defaults));
+      setEditingId(null);
       setOpen(false);
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to create"),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: Record<string, any> }) => {
+      const { error } = await supabase.from(table).update(payload as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(`${title.replace(/s$/, "")} updated`);
+      invalidateAll();
+      setValues(initialValues(fields, defaults));
+      setEditingId(null);
+      setOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message ?? "Update failed"),
   });
 
   const deleteMut = useMutation({
@@ -80,11 +114,22 @@ export function EntityManager({ table, title, description, emptyIcon: Icon, fiel
     },
     onSuccess: () => {
       toast.success("Deleted");
-      qc.invalidateQueries({ queryKey: ["admin", table] });
-      qc.invalidateQueries({ queryKey: [table] });
+      invalidateAll();
     },
     onError: (e: any) => toast.error(e.message ?? "Delete failed"),
   });
+
+  function openCreate() {
+    setEditingId(null);
+    setValues(initialValues(fields, defaults));
+    setOpen(true);
+  }
+
+  function openEdit(row: any) {
+    setEditingId(row.id);
+    setValues(rowToValues(fields, row));
+    setOpen(true);
+  }
 
   function submit() {
     const payload: Record<string, any> = {};
@@ -107,8 +152,11 @@ export function EntityManager({ table, title, description, emptyIcon: Icon, fiel
         payload[f.name] = raw === "" ? null : raw;
       }
     }
-    createMut.mutate(payload);
+    if (editingId) updateMut.mutate({ id: editingId, payload });
+    else createMut.mutate(payload);
   }
+
+  const saving = createMut.isPending || updateMut.isPending;
 
   return (
     <Card className="p-6">
@@ -117,12 +165,10 @@ export function EntityManager({ table, title, description, emptyIcon: Icon, fiel
           <h2 className="text-lg font-semibold">{title}</h2>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="mr-1 h-4 w-4" />New {title.replace(/s$/, "")}</Button>
-          </DialogTrigger>
+        <Button onClick={openCreate}><Plus className="mr-1 h-4 w-4" />New {title.replace(/s$/, "")}</Button>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null); }}>
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-            <DialogHeader><DialogTitle>Create {title.replace(/s$/, "")}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editingId ? "Edit" : "Create"} {title.replace(/s$/, "")}</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-2 sm:grid-cols-2">
               {fields.map((f) => (
                 <div key={f.name} className={f.type === "textarea" ? "sm:col-span-2" : ""}>
@@ -149,8 +195,8 @@ export function EntityManager({ table, title, description, emptyIcon: Icon, fiel
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={submit} disabled={createMut.isPending}>
-                {createMut.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Create
+              <Button onClick={submit} disabled={saving}>
+                {saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{editingId ? "Save changes" : "Create"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -168,7 +214,10 @@ export function EntityManager({ table, title, description, emptyIcon: Icon, fiel
               <div className="min-w-0 flex-1">{renderRow(row)}</div>
               <div className="flex shrink-0 items-center gap-2">
                 {row.status && <Badge variant="outline" className="capitalize">{row.status}</Badge>}
-                <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete this item?")) deleteMut.mutate(row.id); }}>
+                <Button size="icon" variant="ghost" onClick={() => openEdit(row)} title="Edit">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete this item?")) deleteMut.mutate(row.id); }} title="Delete">
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
