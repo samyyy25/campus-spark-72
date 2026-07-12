@@ -34,6 +34,11 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const { isStaff } = useRoles();
+
+  const allGroups = isStaff
+    ? [...groups, { label: "Staff", items: [{ title: "Admin Console", url: "/admin", icon: ShieldCheck }] }]
+    : groups;
 
   return (
     <Sidebar collapsible="icon">
