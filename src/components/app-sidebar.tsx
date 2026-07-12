@@ -1,12 +1,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, Calendar, Briefcase, GraduationCap, Users, Bell, Award,
-  User, ClipboardList, Presentation, BookOpen, CalendarDays,
+  User, ClipboardList, Presentation, BookOpen, CalendarDays, ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, useSidebar,
 } from "@/components/ui/sidebar";
+import { useRoles } from "@/hooks/use-roles";
 
 const groups: { label: string; items: { title: string; url: string; icon: any }[] }[] = [
   { label: "Overview", items: [
