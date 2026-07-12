@@ -1,12 +1,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, Calendar, Briefcase, GraduationCap, Users, Bell, Award,
-  User, ClipboardList, Presentation, BookOpen, CalendarDays,
+  User, ClipboardList, Presentation, BookOpen, CalendarDays, ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, useSidebar,
 } from "@/components/ui/sidebar";
+import { useRoles } from "@/hooks/use-roles";
 
 const groups: { label: string; items: { title: string; url: string; icon: any }[] }[] = [
   { label: "Overview", items: [
@@ -33,6 +34,11 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const { isStaff } = useRoles();
+
+  const allGroups = isStaff
+    ? [...groups, { label: "Staff", items: [{ title: "Admin Console", url: "/admin", icon: ShieldCheck }] }]
+    : groups;
 
   return (
     <Sidebar collapsible="icon">
@@ -48,7 +54,7 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        {groups.map((g) => (
+        {allGroups.map((g) => (
           <SidebarGroup key={g.label}>
             {!collapsed && <SidebarGroupLabel>{g.label}</SidebarGroupLabel>}
             <SidebarGroupContent>
